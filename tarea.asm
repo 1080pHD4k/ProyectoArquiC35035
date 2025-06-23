@@ -1,10 +1,11 @@
 .data
 color_cuadricula:    .word 0x00000000  # Negro
 color_num:     .word 0x00FF0000  # Rojo
+color_inicial: .word 0x0000FF  # Azul
 fondo:    .word 0x00FFFFFF  # Blanco
 input_teclado: .word 0xffff0000
-tamaño_celda:     .word 8
-tamaño_cuadri:     .word 4
+tamaÃ±o_celda:     .word 8
+tamaÃ±o_cuadri:     .word 4
 tablero_facil: 
     .byte 0, 0, 0, 4
     .byte 0, 0, 0, 0
@@ -36,7 +37,6 @@ celdas_tablero_dificil:
     .byte 0, 0, 1, 1
     .byte 0, 0, 0, 0
 
-
 .text
 .globl main
 
@@ -46,8 +46,8 @@ main:
     lw $t2, fondo
     li $t3, 0x10008000
     li $t4, 32
-    lw $t5, tamaño_celda
-    lw $t6, tamaño_cuadri
+    lw $t5, tamaÃ±o_celda
+    lw $t6, tamaÃ±o_cuadri
 
     li $s3, 0       # Estado del input (si es 0 = valor, si es 1 = fila, si es 2 = columna)
     li $t7, 0
@@ -77,6 +77,52 @@ dibujar_grid:
     jal dibujar_vertical_linea
     li $a0, 24
     jal dibujar_vertical_linea
+
+    # dibujar tablero
+    jal ingresar_datos_iniciales
+
+    j input_loop
+    
+ingresar_datos_iniciales:
+    lw $t1, color_inicial
+
+    # 41d
+    li $s2, 4
+    li $s0, 0  
+    li $s1, 3   
+    jal dibujar_num_sin_chequeo
+
+
+    # 23a
+    li $s2, 2
+    li $s0, 2  
+    li $s1, 0  
+    jal dibujar_num_sin_chequeo
+
+    # 33d
+    li $s2, 3
+    li $s0, 2 
+    li $s1, 3   
+    jal dibujar_num_sin_chequeo
+
+    # 44a
+    li $s2, 4
+    li $s0, 3   
+    li $s1, 0  
+    jal dibujar_num_sin_chequeo
+
+    # 14b
+    li $s2, 1
+    li $s0, 3   
+    li $s1, 1
+    jal dibujar_num_sin_chequeo
+
+    # 24c
+    li $s2, 2
+    li $s0, 3  
+    li $s1, 2 
+    jal dibujar_num_sin_chequeo
+    
 
 input_loop:
     lw $t9, input_teclado
@@ -188,37 +234,45 @@ set_col4:
     j terminar_input
 
 terminar_input:
-    jal dibujar_num
+    jal dibujar_num_usuario
     li $s3, 0       # Reinicia el estado
     j input_loop
 
-
-# dibujar en bitmap
-dibujar_num:
+dibujar_num_sin_chequeo:
     li $t3, 0x10008000      # base de display
     li $t4, 32              # ancho pantalla
-    lw $t5, tamaño_celda
+    lw $t5, tamaÃ±o_celda
 
     mul $t7, $s0, $t5
-    addi $t7, $t7, 1        # centrado vertical (1 píxel arriba)
+    addi $t7, $t7, 1
     mul $t8, $s1, $t5
-    addi $t8, $t8, 2        # centrado horizontal (2 píxeles izq)
+    addi $t8, $t8, 2
 
     mul $t9, $t7, $t4
     add $t9, $t9, $t8
     sll $t9, $t9, 2
-    add $t9, $t9, $t3       # $t9 apunta a esquina sup izq
-
-    lw $t1, color_num
+    add $t9, $t9, $t3
 
     beq $s2, 1, dibujar_uno
     beq $s2, 2, dibujar_dos
     beq $s2, 3, dibujar_tres
     beq $s2, 4, dibujar_cuatro
+    
+jr_ra:
     jr $ra
 
-# Cada línea vertical = 128 bytes (32 palabras)
-# Cada columna = +4 bytes
+# dibujar en bitmap
+dibujar_num_usuario:
+    # Verificar si la celda esta ocupada
+    la $t0, celdas_tablero_facil
+    mul $t1, $s0, 4
+    add $t1, $t1, $s1
+    add $t0, $t0, $t1
+    lb $t2, 0($t0)
+    beq $t2, 1, jr_ra      # Si la celda esta ocupada, no dibujar
+
+    lw $t1, color_num
+    j dibujar_num_sin_chequeo
 
 dibujar_uno:
     sw $t1, 4($t9)
@@ -298,7 +352,7 @@ dibujar_cuatro:
     sw $t1, 8($t0)
     jr $ra
 
-# Líneas horizontales
+# LÃ­neas horizontales
 dibujar_horizontal_linea:
     mul $t6, $a0, $t4
     sll $t6, $t6, 2
@@ -313,7 +367,7 @@ horizontal_loop:
 horizontal_fin:
     jr $ra
 
-# Líneas verticales
+# LÃ­neas verticales
 dibujar_vertical_linea:
     li $t6, 0
 vertical_loop:
@@ -327,4 +381,3 @@ vertical_loop:
     j vertical_loop
 vertical_fin:
     jr $ra
-
