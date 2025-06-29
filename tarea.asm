@@ -6,36 +6,16 @@ fondo:    .word 0x00FFFFFF  # Blanco
 input_teclado: .word 0xffff0000
 tamaño_celda:     .word 8
 tamaño_cuadri:     .word 4
-tablero_facil: 
+tablero: 
     .byte 0, 0, 0, 4
     .byte 0, 0, 0, 0
     .byte 2, 0, 0, 3
-    .byte 4, 1, 2, 0
-celdas_tablero_facil:
+    .byte 4, 0, 1, 2
+celdas_tablero:
     .byte 0, 0, 0, 1
     .byte 0, 0, 0, 0
     .byte 1, 0, 0, 1
-    .byte 1, 1, 1, 0
-tablero_medio:
-    .byte 0, 0, 0, 3
-    .byte 0, 4, 0, 0
-    .byte 1, 0, 0, 4
-    .byte 0, 0, 3, 0
-celdas_tablero_medio:
-    .byte 0, 0, 0, 1
-    .byte 0, 1, 0, 0
-    .byte 1, 0, 0, 1
-    .byte 0, 0, 1, 0
-tablero_dificil:
-    .byte 0, 0, 0, 3
-    .byte 0, 4, 0, 0
-    .byte 0, 0, 3, 2
-    .byte 0, 0, 0, 0
-celdas_tablero_dificil:
-    .byte 0, 0, 0, 1
-    .byte 0, 1, 0, 0
-    .byte 0, 0, 1, 1
-    .byte 0, 0, 0, 0
+    .byte 1, 0, 1, 1
 
 .text
 .globl main
@@ -92,7 +72,6 @@ ingresar_datos_iniciales:
     li $s1, 3   
     jal dibujar_num_sin_chequeo
 
-
     # 23a
     li $s2, 2
     li $s0, 2  
@@ -111,16 +90,16 @@ ingresar_datos_iniciales:
     li $s1, 0  
     jal dibujar_num_sin_chequeo
 
-    # 14b
+    # 14c
     li $s2, 1
     li $s0, 3   
-    li $s1, 1
+    li $s1, 2
     jal dibujar_num_sin_chequeo
 
-    # 24c
+    # 24d
     li $s2, 2
     li $s0, 3  
-    li $s1, 2 
+    li $s1, 3
     jal dibujar_num_sin_chequeo
     
 
@@ -130,7 +109,7 @@ input_loop:
     beq $t8, 0, input_loop
     lw $a0, 4($t9)
 
-	#verifica el input
+    #verifica el input
     li $t7, 0
     beq $s3, $t7, manejo_valor_input
     li $t7, 1
@@ -140,8 +119,10 @@ input_loop:
 
     j input_loop
 
-
+#maneja el input
 manejo_valor_input:
+    li $t7, '0'
+    beq $a0, $t7, set_val0
     li $t7, '1'
     beq $a0, $t7, set_val1
     li $t7, '2'
@@ -151,7 +132,11 @@ manejo_valor_input:
     li $t7, '4'
     beq $a0, $t7, set_val4
     j input_loop
-
+    
+set_val0:       # valor 0 indica borrado
+    li $s2, 0  
+    li $s3, 1        
+    j input_loop
 set_val1:
     li $s2, 1
     li $s3, 1
@@ -234,10 +219,13 @@ set_col4:
     j terminar_input
 
 terminar_input:
+    li $t0, 0
+    beq $s2, $t0, borrar_si_es_usuario
     jal dibujar_num_usuario
     li $s3, 0       # Reinicia el estado
     j input_loop
 
+# dibuja los numeros iniciales
 dibujar_num_sin_chequeo:
     li $t3, 0x10008000      # base de display
     li $t4, 32              # ancho pantalla
@@ -261,19 +249,150 @@ dibujar_num_sin_chequeo:
 jr_ra:
     jr $ra
 
-# dibujar en bitmap
+#ingresa los numeros del usuario
 dibujar_num_usuario:
-    # Verificar si la celda esta ocupada
-    la $t0, celdas_tablero_facil
+
+    # Verifica si la celda esta ocupada
+    la $t0, celdas_tablero
+    mul $t1, $s0, 4      
+    add $t1, $t1, $s1
+    add $t0, $t0, $t1
+    lb $t2, 0($t0)
+    beq $t2, 1, jr_ra       
+    li $t4, 0                   
+    la $t5, tablero
+    mul $t6, $s0, 4             
+    add $t5, $t5, $t6         
+
+# validacion por fila
+verificar_fila_loop:
+    beq $t4, 4, verificar_columna    
+    lb $t7, 0($t5)
+    beq $t4, $s1, skip_col_fila     
+    beq $t7, $s2, jr_ra              
+skip_col_fila:
+    addi $t5, $t5, 1
+    addi $t4, $t4, 1
+    j verificar_fila_loop
+
+# validacion por columna
+ verificar_columna:
+    li $t4, 0                    
+    la $t5, tablero      
+
+verificar_col_loop:
+    beq $t4, 4, verificar_cuadrante
+    beq $t4, $s0, skip_fila_col     
+    
+    mul $t6, $t4, 4                 
+    add $t6, $t6, $s1              
+    add $t7, $t5, $t6              
+    lb $t8, 0($t7)                 
+
+    beq $t8, $s2, jr_ra            
+
+skip_fila_col:
+    addi $t4, $t4, 1
+    j verificar_col_loop
+    
+#  validacion en cuadrante 
+verificar_cuadrante:
+    li $t0, 2
+    div $s0, $t0       
+    mflo $t1          
+    div $s1, $t0     
+    mflo $t2         
+
+    mul $t3, $t1, 2    
+    mul $t4, $t2, 2    
+
+    li $t5, 0          
+cuad_loop_fila:
+    li $t6, 0          
+cuad_loop_col:
+    add $t7, $t3, $t5  
+    add $t8, $t4, $t6
+
+    beq $t7, $s0, check_col_igual
+    j continuar_verif_cuad
+    
+check_col_igual:
+    beq $t8, $s1, skip_esta_celda
+
+continuar_verif_cuad:
+    la $t9, tablero
+    mul $s4, $t7, 4      
+    add $s4, $s4, $t8     
+    add $t9, $t9, $s4
+    lb $s5, 0($t9)
+    beq $s5, $s2, jr_ra  
+
+skip_esta_celda:
+        addi $t6, $t6, 1
+    li $s6, 2
+    blt $t6, $s6, cuad_loop_col
+
+    addi $t5, $t5, 1
+    blt $t5, $s6, cuad_loop_fila
+
+
+
+continuar_guardado:
+    # Marcar celda ocupada
+    la $t0, celdas_tablero
+    mul $t1, $s0, 4
+    add $t1, $t1, $s1
+    add $t0, $t0, $t1
+    li $t2, 1
+    sb $t2, 0($t0)
+
+    # Guardar valor en el tablero
+    la $t3, tablero
+    mul $t1, $s0, 4
+    add $t1, $t1, $s1
+    add $t3, $t3, $t1
+    sb $s2, 0($t3)
+    
+    lw $t1, color_num
+    j dibujar_num_sin_chequeo
+
+borrar_si_es_usuario:
+    la $t0, celdas_tablero
     mul $t1, $s0, 4
     add $t1, $t1, $s1
     add $t0, $t0, $t1
     lb $t2, 0($t0)
-    beq $t2, 1, jr_ra      # Si la celda esta ocupada, no dibujar
+    beq $t2, 0, fin_borrado     # si fue de los numeros iniciales, salir (osea ignorar)
 
-    lw $t1, color_num
-    j dibujar_num_sin_chequeo
+    la $t3, tablero
+    mul $t4, $s0, 4
+    add $t4, $t4, $s1
+    add $t3, $t3, $t4
+    lb $s2, 0($t3)              
 
+    lw $t1, fondo       
+    jal dibujar_num_sin_chequeo
+
+    la $t0, celdas_tablero
+    mul $t1, $s0, 4
+    add $t1, $t1, $s1
+    add $t0, $t0, $t1
+    li $t2, 0
+    sb $t2, 0($t0)
+
+    la $t3, tablero
+    mul $t4, $s0, 4
+    add $t4, $t4, $s1
+    add $t3, $t3, $t4
+    li $t5, 0
+    sb $t5, 0($t3)
+
+fin_borrado:
+    li $s3, 0
+    j input_loop
+
+
+# dibujo de los números
 dibujar_uno:
     sw $t1, 4($t9)
     sw $t1, 132($t9)
